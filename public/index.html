@@ -26,6 +26,14 @@
   <div class="bg-layer" aria-hidden="true"></div>
   <div class="bg-overlay" aria-hidden="true"></div>
 
+  <!-- GYM BUDDIES: live count of people currently on the site (top-left corner) -->
+  <div class="gym-buddies" id="gymBuddies" aria-live="polite">
+    <span class="gb-dot" aria-hidden="true"></span>
+    <span class="gb-title">GYM BUDDIES</span>
+    <span class="gb-sep" aria-hidden="true">-</span>
+    <span class="gb-count" id="onlineCount">—</span>
+  </div>
+
   <!-- Minimal transparent header -->
   <header class="site-header">
     <h1 class="site-title"><span class="lang-en">Gym</span> <span class="lang-hi">जाओ</span></h1>
@@ -132,5 +140,6 @@
   <!-- YouTube IFrame Player API -->
   <script src="https://www.youtube.com/iframe_api"></script>
   <script src="js/player.js"></script>
+  <script src="js/presence.js"></script>
 </body>
 </html>
