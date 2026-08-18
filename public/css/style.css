@@ -1,0 +1,606 @@
+/* ============================================================
+   Gym जाओ — dark gym music player
+   Design: black/charcoal base, glassmorphism player, one accent
+   color, minimal motion. Kept intentionally lightweight.
+   ============================================================ */
+
+:root {
+  --bg-black: #0a0a0b;
+  --glass: rgba(22, 22, 26, 0.55);
+  --glass-strong: rgba(14, 14, 17, 0.78);
+  --border: rgba(255, 255, 255, 0.09);
+  --text: #f5f5f7;
+  --text-dim: rgba(245, 245, 247, 0.62);
+  --text-faint: rgba(245, 245, 247, 0.38);
+  --accent: #ff4b2b;
+  --accent-glow: rgba(255, 75, 43, 0.45);
+  --radius-lg: 26px;
+  --radius-md: 16px;
+  --shadow-card: 0 25px 70px rgba(0, 0, 0, 0.55), 0 2px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden; /* no page scroller — layout is sized to always fit the viewport */
+  color: var(--text);
+  font-family: 'Poppins', system-ui, -apple-system, Segoe UI, sans-serif;
+}
+
+/* Background lives only on <html> (the canvas layer, painted below
+   everything). body must stay transparent — an opaque body background
+   paints ABOVE a position:fixed/negative-z-index element, which was
+   hiding .bg-layer completely. */
+html {
+  background: var(--bg-black);
+}
+
+/* ---------- Full-screen background ---------- */
+.bg-layer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: url('../assets/gym_final.png'); /* swap the file, keep this filename in sync */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: -2;
+}
+
+.bg-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(180deg, rgba(6,6,8,0.75) 0%, rgba(6,6,8,0.55) 40%, rgba(6,6,8,0.8) 100%);
+  z-index: -1;
+}
+
+/* ---------- Header ---------- */
+.site-header {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: clamp(20px, 4vh, 44px) 16px 4px;
+}
+
+.site-title {
+  margin: 0;
+  font-family: 'Baloo 2', 'Poppins', system-ui, sans-serif; /* one ExtraBold face for both scripts */
+  font-weight: 800;
+  font-size: clamp(2.1rem, 5vw, 3.4rem);
+  letter-spacing: -0.2px; /* slightly tight, single unified wordmark */
+  line-height: 1.05;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+}
+
+.site-title .lang-en {
+  color: var(--text);
+}
+
+.site-title .lang-hi {
+  color: var(--accent);
+}
+
+.site-subtitle {
+  margin: 8px 0 0;
+  font-size: clamp(0.7rem, 1.6vw, 0.85rem);
+  letter-spacing: 3px;
+  color: var(--text-dim);
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+/* ---------- Bottom-center credit line ---------- */
+.site-credit {
+  position: fixed;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 2;
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+
+/* ---------- Player stage: no longer centers anything — the card is
+   position:fixed and docks itself to the bottom of the viewport. This
+   element just hosts the off-screen yt-holder now. ---------- */
+.player-stage {
+  position: relative;
+  z-index: 2;
+}
+
+/* ---------- Player card: small, 2-line bar, Claude-input-style ---------- */
+.player-card {
+  position: fixed;
+  left: 50%;
+  bottom: 38px;
+  transform: translateX(-50%);
+  z-index: 3;
+  width: min(560px, 94vw);
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  padding: 10px 12px;
+  overflow: hidden; /* safety net: never let content spill past the bar */
+}
+
+.pc-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pc-line-info { padding-bottom: 8px; }
+
+.pc-line-controls {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* Album art — small avatar-sized thumbnail, not a hero element */
+.album-art {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #1a1a1d;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.album-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  animation: spin 6s linear infinite;
+  animation-play-state: paused;
+}
+
+.album-art.is-playing .album-img {
+  animation-play-state: running;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Subtle equalizer, only visible while playing */
+.equalizer {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 12px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  padding-bottom: 2px;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,0.6) 60%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.equalizer.active { opacity: 1; }
+
+.equalizer span {
+  width: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  height: 3px;
+  animation: eq 900ms ease-in-out infinite;
+  animation-play-state: paused;
+}
+
+.equalizer.active span { animation-play-state: running; }
+.equalizer span:nth-child(1) { animation-duration: 620ms; }
+.equalizer span:nth-child(2) { animation-duration: 780ms; }
+.equalizer span:nth-child(3) { animation-duration: 520ms; }
+
+@keyframes eq {
+  0%, 100% { height: 3px; }
+  50% { height: 9px; }
+}
+
+/* Track info */
+.track-info {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 30%;
+}
+
+.song-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.song-status {
+  margin: 1px 0 0;
+  font-size: 0.68rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Progress group: time + bar + time, fills remaining space on line 1 */
+.progress-group {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto; /* time | track (exact leftover space) | time */
+  align-items: center;
+  gap: 8px;
+}
+
+.time {
+  font-size: 0.66rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.progress-track {
+  position: relative;
+  min-width: 0;
+  height: 3px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+}
+
+.progress-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 0%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.progress-handle {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.progress-track:hover .progress-handle { opacity: 1; }
+
+/* Playlist toggle button */
+.playlist-toggle {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+
+.playlist-toggle:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text);
+}
+
+.playlist-toggle:active { transform: scale(0.94); }
+
+/* ---------- Controls (line 2) ---------- */
+.ctrl-btn {
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  transition: color 0.2s ease, transform 0.15s ease, background 0.2s ease;
+}
+
+.ctrl-btn:hover { color: var(--accent); }
+.ctrl-btn:active { transform: scale(0.9); }
+
+.ctrl-small {
+  color: var(--text-faint);
+  width: 26px;
+  height: 26px;
+}
+
+.ctrl-small[aria-pressed="true"] { color: var(--accent); }
+
+.ctrl-play {
+  width: 34px;
+  height: 34px;
+  background: var(--accent);
+  color: #0a0a0b;
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+
+.ctrl-play:hover {
+  color: #0a0a0b;
+  filter: brightness(1.08);
+}
+
+.ctrl-play svg { position: relative; left: 1px; }
+.ctrl-play svg#iconPause { left: 0; }
+
+.ctrl-spacer { flex: 1 1 auto; }
+
+/* ---------- Volume (inline, end of line 2) ---------- */
+.volume-icon {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  display: flex;
+  padding: 4px;
+  flex: 0 0 auto;
+}
+
+.volume-icon:hover { color: var(--text); }
+
+.volume-slider {
+  width: 70px;
+  flex: 0 0 auto;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 3px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.14);
+  outline: none;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* ---------- Hidden YouTube player ---------- */
+.yt-holder {
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* ---------- Playlist drawer ---------- */
+.playlist-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  z-index: 8;
+}
+
+.playlist-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.playlist-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(340px, 86vw);
+  background: var(--glass-strong);
+  border-left: 1px solid var(--border);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.45);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+}
+
+.playlist-panel.open {
+  transform: translateX(0);
+}
+
+.playlist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.playlist-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.playlist-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.playlist-close:hover { color: var(--text); }
+
+.playlist-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 10px 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.playlist-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.playlist-list li:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.playlist-list li.active {
+  background: rgba(255, 75, 43, 0.14);
+}
+
+.playlist-list .track-num {
+  width: 22px;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+.playlist-list li.active .track-num { color: var(--accent); }
+
+.playlist-list .track-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-dim);
+}
+
+.playlist-list li.active .track-title {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.playlist-list .track-play {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.playlist-list li.active .track-play {
+  background: var(--accent);
+  color: #0a0a0b;
+}
+
+.playlist-empty {
+  color: var(--text-faint);
+  font-size: 0.85rem;
+  padding: 20px 12px !important;
+  cursor: default !important;
+}
+.playlist-empty:hover { background: none !important; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 560px) {
+  .player-card {
+    bottom: 30px;
+    padding: 8px 10px;
+  }
+
+  .site-credit { bottom: 8px; font-size: 0.62rem; }
+
+  /* Line 1 becomes an explicit 2-row grid: thumb/title/toggle on row 1,
+     the progress bar spanning the full width on row 2. Explicit grid
+     areas avoid the overflow bugs that flex-basis:100%+order caused. */
+  .pc-line-info {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "thumb title toggle"
+      "prog  prog  prog";
+    column-gap: 10px;
+    row-gap: 6px;
+  }
+
+  .album-art { grid-area: thumb; }
+  .track-info { grid-area: title; max-width: none; }
+  .playlist-toggle { grid-area: toggle; }
+  .progress-group { grid-area: prog; }
+
+  .pc-line-controls { flex-wrap: wrap; row-gap: 6px; justify-content: center; }
+
+  .volume-slider { width: 50px; }
+
+  .playlist-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: min(70vh, 520px);
+    border-left: none;
+    border-top: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    transform: translateY(100%);
+  }
+
+  .playlist-panel.open { transform: translateY(0); }
+}
+
+@media (max-width: 360px) {
+  .track-info { max-width: 30vw; }
+  .song-status { display: none; }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "gym-music",
+  "version": "1.0.0",
+  "description": "Lightweight dark-gym themed music player website powered by the YouTube IFrame Player API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
